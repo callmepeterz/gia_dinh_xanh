@@ -71,7 +71,7 @@ CREATE TABLE public.services (
   title VARCHAR(150) NOT NULL,
   description TEXT,
   price NUMERIC(10,2) NOT NULL CHECK (price >= 0),
-  pricing_type VARCHAR(10) NOT NULL CHECK (pricing_type IN ('fixed', 'hourly')),
+  pricing_type VARCHAR(10) NOT NULL CHECK (pricing_type IN ('fixed', 'hourly', 'persquare')),
   estimated_duration INT NOT NULL CHECK (estimated_duration > 0),
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -127,7 +127,7 @@ CREATE TABLE public.bookings (
   total_incidental NUMERIC(10,2) NOT NULL DEFAULT 0 CHECK (total_incidental >= 0),
   total_amount NUMERIC(10,2) NOT NULL CHECK (total_amount >= 0),
   status VARCHAR(20) NOT NULL DEFAULT 'pending'
-    CHECK (status IN ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled')),
+    CHECK (status IN ('pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'rejected', 'auto_cancelled')),
   payment_status VARCHAR(10) NOT NULL DEFAULT 'unpaid'
     CHECK (payment_status IN ('unpaid', 'paid', 'refunded')),
   notes TEXT,
