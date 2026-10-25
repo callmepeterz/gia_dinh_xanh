@@ -57,7 +57,6 @@ CREATE TABLE public.provider_profiles (
 
 CREATE TABLE public.service_categories (
   category_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  parent_id UUID REFERENCES public.service_categories(category_id),
   category_name VARCHAR(100) NOT NULL,
   slug VARCHAR(120) UNIQUE NOT NULL,
   description TEXT,
