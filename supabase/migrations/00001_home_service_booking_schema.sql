@@ -168,12 +168,73 @@ CREATE TABLE public.support_tickets (
   user_id UUID NOT NULL REFERENCES public.users(user_id),
   booking_id UUID REFERENCES public.bookings(booking_id),
   subject VARCHAR(200) NOT NULL,
+  content TEXT NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'open'
     CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
   priority VARCHAR(10) NOT NULL DEFAULT 'medium'
     CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE public.notifications (
+  notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  recipient_id UUID NOT NULL REFERENCES public.users(user_id) ON DELETE CASCADE,
+  booking_id UUID REFERENCES public.bookings(booking_id) ON DELETE CASCADE,
+  ticket_id UUID REFERENCES public.support_tickets(ticket_id) ON DELETE CASCADE,
+  notification_type VARCHAR(40) NOT NULL CHECK (notification_type IN (
+    'new_booking_request',
+    'booking_accepted',
+    'booking_rejected',
+    'booking_cancelled',
+    'booking_auto_expired',
+    'booking_status_changed',
+    'review_reminder',
+    'support_ticket_response',
+    'provider_approval_result',
+    'account_suspension'
+  )),
+  channel VARCHAR(10) NOT NULL CHECK (channel IN ('in_app', 'email')),
+  title VARCHAR(200) NOT NULL,
+  message TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT false,
+  read_at TIMESTAMPTZ,
+  delivery_status VARCHAR(10) NOT NULL DEFAULT 'pending'
+    CHECK (delivery_status IN ('pending', 'sent', 'failed')),
+  delivery_attempts INT NOT NULL DEFAULT 0 CHECK (delivery_attempts >= 0),
+  last_delivery_error TEXT,
+  deduplication_key VARCHAR(255) NOT NULL UNIQUE,
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CHECK (
+    (is_read = false AND read_at IS NULL)
+    OR (is_read = true AND read_at IS NOT NULL)
+  ),
+  CHECK (
+    (
+      notification_type IN (
+        'new_booking_request',
+        'booking_accepted',
+        'booking_rejected',
+        'booking_cancelled',
+        'booking_auto_expired',
+        'booking_status_changed',
+        'review_reminder'
+      )
+      AND booking_id IS NOT NULL
+      AND ticket_id IS NULL
+    )
+    OR (
+      notification_type = 'support_ticket_response'
+      AND ticket_id IS NOT NULL
+      AND booking_id IS NULL
+    )
+    OR (
+      notification_type IN ('provider_approval_result', 'account_suspension')
+      AND booking_id IS NULL
+      AND ticket_id IS NULL
+    )
+  )
 );
 
 CREATE INDEX idx_ward_province ON public.wards("provinceId");
@@ -184,6 +245,8 @@ CREATE INDEX idx_bookings_customer ON public.bookings(customer_id, created_at DE
 CREATE INDEX idx_bookings_provider ON public.bookings(provider_id, scheduled_time);
 CREATE INDEX idx_booking_status_history_booking ON public.booking_status_history(booking_id, created_at);
 CREATE INDEX idx_support_tickets_user ON public.support_tickets(user_id, status);
+CREATE INDEX idx_notifications_recipient ON public.notifications(recipient_id, created_at DESC);
+CREATE INDEX idx_notifications_delivery ON public.notifications(delivery_status, created_at);
 
 CREATE OR REPLACE FUNCTION public.set_schema_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public, pg_temp AS $$
@@ -222,6 +285,7 @@ ALTER TABLE public.booking_status_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.support_tickets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY province_read ON public.provinces FOR SELECT TO anon, authenticated USING (true);
 CREATE POLICY ward_read ON public.wards FOR SELECT TO anon, authenticated USING (true);
